@@ -13,9 +13,10 @@ import (
 var ErrNoteNotFound = errors.New("笔记不存在")
 
 type Note struct {
-	ID        uint64    `json:"id"`
-	Content   string    `json:"content"`
-	CreatedAt time.Time `json:"created_at"`
+	ID        uint64     `json:"id"`
+	Content   string     `json:"content"`
+	CreatedAt time.Time  `json:"created_at"`
+	UpdatedAt *time.Time `json:"updated_at,omitempty"`
 }
 
 var bucketName = []byte("notes")
@@ -130,4 +131,28 @@ func (s *Store) SearchNotes(keyword string) ([]Note, error) {
 		})
 	})
 	return notes, err
+}
+
+func (s *Store) EditNote(id uint64, newContent string) error {
+	return s.db.Update(func(tx *bbolt.Tx) error {
+		b := tx.Bucket(bucketName)
+		key := make([]byte, 8)
+		binary.BigEndian.PutUint64(key, id)
+		v := b.Get(key)
+		if v == nil {
+			return ErrNoteNotFound
+		}
+		var note Note
+		if err := json.Unmarshal(v, &note); err != nil {
+			return err
+		}
+		now := time.Now()
+		note.UpdatedAt = &now
+		note.Content = newContent
+		data, err := json.Marshal(note)
+		if err != nil {
+			return err
+		}
+		return b.Put(key, data)
+	})
 }
