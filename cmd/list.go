@@ -1,8 +1,11 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
+	"huachuang-note/storage"
 	"time"
+	"unicode"
 
 	"github.com/spf13/cobra"
 )
@@ -42,6 +45,9 @@ var deleteCmd = &cobra.Command{
 		}
 		err = store.DeleteNote(id)
 		if err != nil {
+			if errors.Is(err, storage.ErrNoteNotFound) {
+				return fmt.Errorf("笔记 ID %d 不存在", id)
+			}
 			return fmt.Errorf("删除笔记失败: %w", err)
 		}
 		fmt.Printf("笔记 %d 已删除\n", id)
@@ -54,7 +60,19 @@ func truncate(s string, n int) string {
 	if len(runes) <= n {
 		return s
 	}
-	return string(runes[:n]) + "..."
+	cut := n
+	for cut > 0 {
+		r := runes[cut-1]
+		if unicode.IsMark(r) || unicode.Is(unicode.Variation_Selector, r) || r == '\u200D' {
+			cut--
+		} else {
+			break
+		}
+	}
+	if cut <= 0 {
+		cut = 1
+	}
+	return string(runes[:cut]) + "..."
 }
 
 func init() {

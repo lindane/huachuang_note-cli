@@ -3,10 +3,13 @@ package storage
 import (
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"time"
 
 	"go.etcd.io/bbolt"
 )
+
+var ErrNoteNotFound = errors.New("笔记不存在")
 
 type Note struct {
 	ID        uint64    `json:"id"`
@@ -76,11 +79,35 @@ func (s *Store) ListNotes() ([]Note, error) {
 	return notes, err
 }
 
+func (s *Store) GetNote(id uint64) (*Note, error) {
+	var note *Note
+	err := s.db.View(func(tx *bbolt.Tx) error {
+		b := tx.Bucket(bucketName)
+		key := make([]byte, 8)
+		binary.BigEndian.PutUint64(key, id)
+		v := b.Get(key)
+		if v == nil {
+			return ErrNoteNotFound
+		}
+		var n Note
+		if err := json.Unmarshal(v, &n); err != nil {
+			return err
+		}
+		note = &n
+		return nil
+	})
+	return note, err
+}
+
 func (s *Store) DeleteNote(id uint64) error {
 	return s.db.Update(func(tx *bbolt.Tx) error {
 		b := tx.Bucket(bucketName)
 		key := make([]byte, 8)
 		binary.BigEndian.PutUint64(key, id)
+		v := b.Get(key)
+		if v == nil {
+			return ErrNoteNotFound
+		}
 		return b.Delete(key)
 	})
 }
