@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 
 	"go.etcd.io/bbolt"
@@ -110,4 +111,23 @@ func (s *Store) DeleteNote(id uint64) error {
 		}
 		return b.Delete(key)
 	})
+}
+
+func (s *Store) SearchNotes(keyword string) ([]Note, error) {
+	var notes []Note
+	keywordLower := strings.ToLower(keyword)
+	err := s.db.View(func(tx *bbolt.Tx) error {
+		b := tx.Bucket(bucketName)
+		return b.ForEach(func(k, v []byte) error {
+			var note Note
+			if err := json.Unmarshal(v, &note); err != nil {
+				return err
+			}
+			if strings.Contains(strings.ToLower(note.Content), keywordLower) {
+				notes = append(notes, note)
+			}
+			return nil
+		})
+	})
+	return notes, err
 }
